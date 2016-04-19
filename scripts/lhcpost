@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [ $# != 3 ]; then
+echo "LIFETRAC postprocessing script for LHC tracking data 'lhcpost'"
+echo "by A.Valishev (x2875)"
+echo " "
+echo "usage: $0 ltr_dir ltr_file py_dir"
+echo $'  ltr_dir : tracking directoy\n  ltr_file: lifetrac output file'
+echo "   py_dir: path to LifeDesk python module" 
+echo "Example: lhcpost . lhc.ltr"
+exit 0;
+fi
+
+# tracking directory
+LTRDIR=$1
+# output file, e.g. lhc.ltr
+LTRFILE=$2
+# for compatibility with old scripts
+LTRDEFAULT="lhc.ltr"
+LTRFILE=${LTRFILE:-$LTRDEFAULT}
+# directory with LifeDesk python module
+PYDIR=$3
+
+echo ">> Processing directory: ${LTRDIR}"
+echo "   Output file ${LTRFILE}"
+cd ${LTRDIR}
+
+j=2
+while ((`pwd | cut -f $j -d'/'| wc -m`>1)) ; do
+j=$(($j+1))
+done
+j=$(($j-1))
+pn=`pwd | cut -f $j -d'/'`
+
+echo ">> Calling file output.sh ..."
+IP=`${PYDIR}/output.sh $LTRFILE | tail -2 | head -1 | cut -f 2 -d':'`
+echo "   Monitoring IP: ${IP}"
+${PYDIR}/output.sh $LTRFILE ${IP}
+steplen=`grep Boundary $LTRFILE | cut -f 3 -d'='`
+nsteps=${xrange:-`grep Step $LTRFILE |tail -1|cut -f 2 -d'_'`}
+gamma=`grep Gamma_weak $LTRFILE | cut -f 3 -d' '`
+echo "   steplen= $steplen, nsteps= $nsteps"
+echo "   gamma= $gamma"
