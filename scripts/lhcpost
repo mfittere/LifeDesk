@@ -7,7 +7,7 @@ echo " "
 echo "usage: $0 ltr_dir ltr_file py_dir"
 echo $'  ltr_dir : tracking directoy\n  ltr_file: lifetrac output file'
 echo "   py_dir: path to LifeDesk python module" 
-echo "Example: lhcpost . lhc.ltr"
+echo "Example: lhcpost . lhc.ltr ~/lib/python/LifeDesk/scripts"
 exit 0;
 fi
 
@@ -21,8 +21,9 @@ LTRFILE=${LTRFILE:-$LTRDEFAULT}
 # directory with LifeDesk python module
 PYDIR=$3
 
-echo ">> Processing directory: ${LTRDIR}"
-echo "   Output file ${LTRFILE}"
+echo "... starting lhcpost"
+echo "Processing directory: ${LTRDIR}"
+echo "Output file ${LTRFILE}"
 cd ${LTRDIR}
 
 j=2
@@ -32,12 +33,15 @@ done
 j=$(($j-1))
 pn=`pwd | cut -f $j -d'/'`
 
-echo ">> Calling file output.sh ..."
+echo "Calling file output.sh ..."
 IP=`${PYDIR}/output.sh $LTRFILE | tail -2 | head -1 | cut -f 2 -d':'`
 echo "   Monitoring IP: ${IP}"
-${PYDIR}/output.sh $LTRFILE ${IP}
+echo ${PYDIR}/output.sh $LTRFILE ${IP} ${PYDIR}
+${PYDIR}/output.sh $LTRFILE ${IP} ${PYDIR}
 steplen=`grep Boundary $LTRFILE | cut -f 3 -d'='`
 nsteps=${xrange:-`grep Step $LTRFILE |tail -1|cut -f 2 -d'_'`}
 gamma=`grep Gamma_weak $LTRFILE | cut -f 3 -d' '`
 echo "   steplen= $steplen, nsteps= $nsteps"
 echo "   gamma= $gamma"
+echo "Created emit.txt, intensity.txt, lossrate.txt, luminosity.txt"
+

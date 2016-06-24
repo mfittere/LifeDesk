@@ -68,7 +68,7 @@ class LifeDeskDB(object):
     if(ltr_dir=='.'): ltr_dir= os.getcwd()
     if(plt_dir=='.'): plt_dir= os.getcwd()
     if not os.path.isdir(plt_dir):
-      os.mkdir(plt_dir)
+      os.makedirs(plt_dir)
 # delete old output files
     for ff in 'emit.txt intensity.txt lossrate.txt luminosity.txt'.split():
       if os.path.isfile(os.path.join(ltr_dir,ff)):
