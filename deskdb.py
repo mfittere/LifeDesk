@@ -125,7 +125,7 @@ class LifeDeskDB(object):
     print 'tracking directory: ltr_dir  = %s'%(self.lifedeskenv['ltr_dir'])
     print 'output file name  : ltr_file = %s'%(self.lifedeskenv['ltr_file'])
     print 'plot directory: plt_dir  = %s'%(self.lifedeskenv['plt_dir'])
-  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None):
+  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
@@ -144,11 +144,11 @@ class LifeDeskDB(object):
         print '%s not found in data'%n
         return 0
     x,y = self.data[xaxis],self.data[yaxis]
-    pl.plot(x,y,linestyle='-',marker='o',color=color,label=lbl)
+    pl.plot(x,y,linestyle='-',marker='o',color=color,label=lbl,alpha=alpha)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
     pl.legend(loc='best',fontsize=12)
-  def plot_all(self,color='b',lbl=None,title=None,export=None):
+  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
     
@@ -161,7 +161,7 @@ class LifeDeskDB(object):
     for p in ['emit1','emit2','sigm','intensity','luminosity','lossrate']:
       pl.figure(p)
       try:
-        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl)
+        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=1.0)
         # place the legend to the outside of the plot
         box = pl.gca().get_position()
         # if more than 4 entries, take two columns, otherwise one
