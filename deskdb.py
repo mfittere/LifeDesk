@@ -14,6 +14,13 @@ except ImportError:
   print "No module found: numpy matplotlib and scipy modules should be present to run sixdb"
   raise ImportError
 
+mycolors=['b','r','g','m','orange','pink','cyan','indigo','lime']
+def colorrotate():
+  c=mycolors.pop(0);mycolors.append(c)
+  return c
+def gaussian(x,mean,sigma):
+  return np.exp(-((x-mean)**2)/(2*sigma**2))/(np.sqrt(2*sigma**2*np.pi))
+
 class LifeDeskDB(object):
   def __init__(self,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',input_param={},data=np.array([])):
     """creates the LifeDeskDB class object
@@ -39,12 +46,16 @@ class LifeDeskDB(object):
       intensity  : normalized beam intensity I_tot/I_0
       luminosity :
       lossrate   : normalized loss rate I_lost/I_0
-
+    hist: histograms (only filled if self.get_hist()
+          is called)
+      'header' : mean,sigma and norm of histograms
+      'data'   : histogram data
     """
     if(ltr_dir=='.'): ltr_dir= os.getcwd()
     self.lifedeskenv={'ltr_dir':ltr_dir,'ltr_file':ltr_file,'plt_dir':plt_dir}
     self.input_param=input_param
     self.data = data
+    self.hist = {}
 # dictionary which stores the lbls and units
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
   @classmethod
@@ -125,6 +136,86 @@ class LifeDeskDB(object):
     print 'tracking directory: ltr_dir  = %s'%(self.lifedeskenv['ltr_dir'])
     print 'output file name  : ltr_file = %s'%(self.lifedeskenv['ltr_file'])
     print 'plot directory: plt_dir  = %s'%(self.lifedeskenv['plt_dir'])
+  def get_hist(self,fn='lhc.hist'):
+    """read in histogram data from file *fn*
+    and store in self.hist with:
+    'header' : header data containing
+      mean : mean values
+      sigm : standard deviation of gaussian fit
+      norm : ?
+      emit : calculated emittance
+      each of these contains the values for
+        x,x',y,y',z,dE/E [cm,rad,cm,rad,cm,1]
+    """
+    ltr_dir=self.lifedeskenv['ltr_dir']
+    fna=os.path.join(ltr_dir,fn) #absolute path
+    data = np.array([])
+    header = {}
+    if not os.path.isfile(fna) and self.hist=={}:
+      print "ERROR: file %s does not exist!"%fn
+    else:
+      print "... getting histogram data from %s"%fn
+      #read in histogram data
+      print "reading data"
+      ftype=[('val','f8'),('x','f8'),('px','f8'),('ax','f8'),('y','f8'),('py','f8'),('ay','f8'),('z','f8'),('pz','f8'),('az','f8'),('parity','S2'),('step','S100')]
+      data = np.loadtxt(fna,comments='#',dtype=ftype)
+      # read in header with statistical data
+      print "reading header with statistical data"
+      ff=open(fna,'r')
+      header={}
+      htype=[('mean','6f8'),('sigm','6f8'),('norm','6f8'),('emit','6f8')]
+      for line in ff:
+        if line.startswith('#'):
+# go in exactly the order of the header, so that values are grouped correctly togeter
+          if 'Step' in line:
+            step=int(line.split()[1])
+          if '|mean' in line: # otherwise is take 'Mean_values'
+            mean=map(float,line.replace('|','').split()[1:])
+          if '|sigm' in line: # otherwise is take 'Mean_values'
+            sigm=map(float,line.replace('|','').split()[1:])
+          if '|norm' in line: # otherwise is take 'Mean_values'
+            norm=map(float,line.replace('|','').split()[1:])
+          if '|emit' in line: # otherwise is take 'Mean_values'
+            emit=map(float,line.replace('|','').replace(')','').replace('(','').split()[1:])
+          if 'Val' in line: # end of header
+# figure out read in of structured array!!!
+            header[step]=np.array((mean,sigm,norm,emit),dtype=htype)
+      self.hist['header']= header
+      self.hist['data']  = data
+  def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,log=True):
+    """plot histogram of particle distribution.
+    Plotrange is by default set to [-6,6] sigma,
+    while histograms usually extend further.
+    Parameters:
+    fn:    filename with histogram data
+    plane: plane, options are x,px,ax,y,py,ay,z,pz,az with
+      ax,ay,az being the normalized amplitude
+    nstep: list of steps for which the histogram is plotted,
+      e.g. [1,5,10]. If nturn=None, then the first and last 
+      turn are used
+    fit: plot Gaussian fit
+    """
+    if self.hist == {}:
+      print 'ERROR: no histogram data available! Run self.get_hist() to read in histogram data, if it exists.'
+    else:
+      # map plane to array in self.hist['header'][*]
+      hist_keys={'x':0,'px':1,'y':2,'py':3,'z':4,'pz':5}
+      if nstep == None:
+        steps=self.hist['header'].keys()
+        nstep=[steps[0],steps[-1]]
+      for step in nstep:
+        data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
+        fit = (self.hist['header'][step]) 
+        width = data['val'][1]-data['val'][0]
+#        pl.bar(data['val'],data[plane],align='center',width=width,color='g')
+        c=colorrotate()
+        pl.plot(data['val'],data[plane],ls='steps',label='step %s'%step,color=c)
+#        pl.plot(data['val'],gaussian(data['val'],fit['mean'][hist_keys[plane]],fit['sigm'][hist_keys[plane]]),linestyle='--',color=c)
+        pl.legend(loc='best',fontsize=12)
+        pl.yscale('log')
+        pl.xlim([-6,6])
+        pl.xlabel(r'$\sigma_{%s}$'%plane)
+        pl.ylabel(r'count')
   def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0):
     """plot *xaxis* vs *yaxis*
     Parameters:
@@ -161,7 +252,7 @@ class LifeDeskDB(object):
     for p in ['emit1','emit2','sigm','intensity','luminosity','lossrate']:
       pl.figure(p)
       try:
-        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=1.0)
+        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=alpha)
         # place the legend to the outside of the plot
         box = pl.gca().get_position()
         # if more than 4 entries, take two columns, otherwise one
