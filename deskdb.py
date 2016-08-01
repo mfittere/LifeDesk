@@ -207,15 +207,16 @@ class LifeDeskDB(object):
         data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
         fit = (self.hist['header'][step]) 
         width = data['val'][1]-data['val'][0]
-#        pl.bar(data['val'],data[plane],align='center',width=width,color='g')
-        c=colorrotate()
-        pl.plot(data['val'],data[plane],ls='steps',label='step %s'%step,color=c)
-#        pl.plot(data['val'],gaussian(data['val'],fit['mean'][hist_keys[plane]],fit['sigm'][hist_keys[plane]]),linestyle='--',color=c)
-        pl.legend(loc='best',fontsize=12)
-        pl.yscale('log')
-        pl.xlim([-6,6])
-        pl.xlabel(r'$\sigma_{%s}$'%plane)
-        pl.ylabel(r'count')
+        for p in list(plane):
+#          pl.bar(data['val'],data[plane],align='center',width=width,color='g')
+#          c=colorrotate()
+          pl.plot(data['val'],data[p],ls='steps',label='%s, step %s'%(p,step))#,color=c)
+#          pl.plot(data['val'],gaussian(data['val'],fit['mean'][hist_keys[plane]],fit['sigm'][hist_keys[plane]]),linestyle='--',color=c)
+          pl.legend(loc='best',fontsize=12)
+          if log == True: pl.yscale('log')
+          pl.xlim([-6,6])
+          pl.xlabel(r'$\sigma$')
+          pl.ylabel(r'count')
   def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0):
     """plot *xaxis* vs *yaxis*
     Parameters:
@@ -268,7 +269,7 @@ class LifeDeskDB(object):
 #        pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
         if export != None:
           print '%s.%s'%(p,export)
-          pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export))
+          pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
       except KeyError:
         print 'ERROR in plot_all: could not plot %s'%p
         print '   self.data[%s][0]=%s'%(p,self.data[p][0])
