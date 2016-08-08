@@ -19,7 +19,8 @@ def colorrotate():
   c=mycolors.pop(0);mycolors.append(c)
   return c
 def gaussian(x,mean,sigma):
-  return np.exp(-((x-mean)**2)/(2*sigma**2))/(np.sqrt(2*sigma**2*np.pi))
+#  return np.exp(-((x-mean)**2)/(2*sigma**2))/(np.sqrt(2*sigma**2*np.pi))
+  return np.exp(-((x-mean)**2)/(2*sigma**2))
 
 class LifeDeskDB(object):
   def __init__(self,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',input_param={},data=np.array([])):
@@ -89,6 +90,7 @@ class LifeDeskDB(object):
     print '... calling script %s/lhcpost'%(script_path)
     p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE)
     stdout,stderr=p.communicate()
+    print stdout
     if stderr != None:
       print "ERROR while executing command lhcpost %s %s:"%(ltr_dir,ltr_file)
       print stderr
@@ -99,15 +101,17 @@ class LifeDeskDB(object):
         print "ERROR when calling output.sh: file %s has not been generated!"%ff
         check=False
     if check: print "... created emit.txt, intensity.txt, lossrate.txt, luminosity.txt"
-# -- get in put parameters
+# -- get input parameters
     lout=stdout.split('\n')
     input_param={}
     for s in lout:
       if s.find('Monitoring IP')>-1:
         input_param['Monitoring IP'] = s.split()[-1]
       if s.find('steplen')>-1:
-        input_param['steplen'] = float((s.split(',')[0]).split()[-1])
-        input_param['nsteps']  = float((s.split(',')[1]).split()[-1])
+#        input_param['steplen'] = float((s.split(',')[0]).split()[-1])
+#        input_param['nsteps']  = float((s.split(',')[1]).split()[-1])
+        input_param['steplen'] = [float(i) for i in (s.split()[1][:-1]).replace('(','').replace(')','').split(',')]
+        input_param['nsteps']  = float((s.split(',')[-1]).split()[-1])
       if s.find('gamma')>-1:
         input_param['gamma'] = float(s.split()[-1])
     input_param['circlhc'] = 26658.8832
@@ -118,12 +122,14 @@ class LifeDeskDB(object):
     emit1,emit2,step = (np.loadtxt('%s/emit.txt'%(ltr_dir))).T # rms emittance [cm]
     emit1 = emit1*(beta*gamma)*1.e4 # normalized emittance [mum]
     emit2 = emit2*(beta*gamma)*1.e4 # normalized emittance [mum]
-    nturn            = step * input_param['steplen']
+    nstep=len(step)/len(input_param['steplen'])
+    nturn            = np.cumsum(np.array(input_param['steplen'] * nstep))
+    print nturn
     time             = nturn*input_param['circlhc']/(beta*clight) # time [s]
     sigm             = np.loadtxt('%s/sigm.txt'%(ltr_dir))
     intensity        = np.loadtxt('%s/intensity.txt'%(ltr_dir))
     lumi             = np.loadtxt('%s/luminosity.txt'%(ltr_dir))
-    loss             = np.loadtxt('%s/lossrate.txt'%(ltr_dir))
+    loss             = np.genfromtxt('%s/lossrate.txt'%(ltr_dir),missing_values='************',filling_values=0)
     data_flat = (np.column_stack((step,nturn,time,emit1,emit2,sigm,intensity,lumi,loss))).ravel()
     ftype=[('step',float),('nturn',float),('time',float),('emit1',float),('emit2',float),('sigm',float),('intensity',float),('luminosity',float),('lossrate',float)]
     data = data_flat.view(ftype)
@@ -210,14 +216,17 @@ class LifeDeskDB(object):
         for p in list(plane):
 #          pl.bar(data['val'],data[plane],align='center',width=width,color='g')
 #          c=colorrotate()
-          pl.plot(data['val'],data[p],ls='steps',label='%s, step %s'%(p,step))#,color=c)
-#          pl.plot(data['val'],gaussian(data['val'],fit['mean'][hist_keys[plane]],fit['sigm'][hist_keys[plane]]),linestyle='--',color=c)
+          myplot=pl.plot(data['val'],data[p],ls='steps',label='%s, step %s'%(p,step))#,color=c)
+#          pl.plot(data['val'],gaussian(data['val'],fit['mean'][hist_keys[plane]],fit['norm'][hist_keys[plane]]),linestyle='--',color=c)
+          c=myplot[-1].get_color()
+          print fit['norm'][hist_keys[plane]]
+          pl.plot(data['val'],gaussian(data['val'],0,fit['norm'][hist_keys[plane]]),linestyle='--',color=c)
           pl.legend(loc='best',fontsize=12)
           if log == True: pl.yscale('log')
           pl.xlim([-6,6])
           pl.xlabel(r'$\sigma$')
           pl.ylabel(r'count')
-  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0):
+  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0,linestyle='-',indstep=None):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
@@ -227,6 +236,9 @@ class LifeDeskDB(object):
     norm    : eps = beta*gamma*epsn
               false: rms emittance eps [mum]
               true : normalized emittance epsn [mum]
+    indstep : make plots for each steplength, e.g. if
+              different stplength are used, create a 
+              different plot for each steplength
     color   : plot color
     """
     data_names = self.data.dtype.names
@@ -236,11 +248,11 @@ class LifeDeskDB(object):
         print '%s not found in data'%n
         return 0
     x,y = self.data[xaxis],self.data[yaxis]
-    pl.plot(x,y,linestyle='-',marker='o',color=color,label=lbl,alpha=alpha)
+    pl.plot(x,y,linestyle=linestyle,marker='o',color=color,label=lbl,alpha=alpha)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
     pl.legend(loc='best',fontsize=12)
-  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0):
+  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-'):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
     
@@ -253,7 +265,7 @@ class LifeDeskDB(object):
     for p in ['emit1','emit2','sigm','intensity','luminosity','lossrate']:
       pl.figure(p)
       try:
-        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=alpha)
+        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=alpha,linestyle=linestyle)
         # place the legend to the outside of the plot
         box = pl.gca().get_position()
         # if more than 4 entries, take two columns, otherwise one
