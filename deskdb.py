@@ -124,7 +124,6 @@ class LifeDeskDB(object):
     emit2 = emit2*(beta*gamma)*1.e4 # normalized emittance [mum]
     nstep=len(step)/len(input_param['steplen'])
     nturn            = np.cumsum(np.array(input_param['steplen'] * nstep))
-    print nturn
     time             = nturn*input_param['circlhc']/(beta*clight) # time [s]
     sigm             = np.loadtxt('%s/sigm.txt'%(ltr_dir))
     intensity        = np.loadtxt('%s/intensity.txt'%(ltr_dir))
@@ -252,6 +251,7 @@ class LifeDeskDB(object):
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
     pl.legend(loc='best',fontsize=12)
+    pl.grid()
   def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-'):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
