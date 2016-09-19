@@ -225,7 +225,7 @@ class LifeDeskDB(object):
           pl.xlim([-6,6])
           pl.xlabel(r'$\sigma$')
           pl.ylabel(r'count')
-  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0,linestyle='-',indstep=None):
+  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0,linestyle='-',marker='o',indstep=None):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
@@ -247,12 +247,25 @@ class LifeDeskDB(object):
         print '%s not found in data'%n
         return 0
     x,y = self.data[xaxis],self.data[yaxis]
-    pl.plot(x,y,linestyle=linestyle,marker='o',color=color,label=lbl,alpha=alpha)
+    pl.plot(x,y,linestyle=linestyle,marker=marker,color=color,label=lbl,alpha=alpha)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
-    pl.legend(loc='best',fontsize=12)
+    # place the legend to the outside of the plot
+    box = pl.gca().get_position()
+    # if more than 4 entries, take two columns, otherwise one
+    nlabels = len(pl.gca().get_legend_handles_labels()[1])
+    if (nlabels <=4) : ncol = 1
+    elif (nlabels > 5 and nlabels <=8): ncol = 2
+    else:
+      ncol = 3
+    # legend on top
+      pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
+      pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
+#      # legend on right side
+#      legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,fontsize=12)
+#      pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
     pl.grid()
-  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-'):
+  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
     
@@ -266,19 +279,6 @@ class LifeDeskDB(object):
       pl.figure(p)
       try:
         self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=alpha,linestyle=linestyle)
-        # place the legend to the outside of the plot
-        box = pl.gca().get_position()
-        # if more than 4 entries, take two columns, otherwise one
-        nlabels = len(pl.gca().get_legend_handles_labels()[1])
-        if (nlabels <=4) : ncol = 1
-        elif (nlabels > 5 and nlabels <=8): ncol = 2
-        else: ncol = 3
-        # legend on top
-        pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
-        pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
-#        # legend on right side
-#        legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,fontsize=12)
-#        pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
         if export != None:
           print '%s.%s'%(p,export)
           pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
