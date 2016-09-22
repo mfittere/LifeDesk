@@ -60,7 +60,7 @@ class LifeDeskDB(object):
 # dictionary which stores the lbls and units
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
   @classmethod
-  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.'):
+  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=True):
     '''create LifeDeskDB class object from dat
     in directory ltr_dir.
     Parameters:
@@ -72,7 +72,7 @@ class LifeDeskDB(object):
     if not os.path.isfile(os.path.join(ltr_dir,ltr_file)):
       print 'ERROR in getdata: file %s does not exist!'%(os.path.join(ltr_dir,ltr_file))
       return
-    print '... getting data from %s'%ltr_file
+    if verbose: print '... getting data from %s'%ltr_file
 # get path to lhcpost, output.sh files in LifeDesk directory
     script_path='%s/scripts'%(os.path.dirname(getfile(LifeDeskDB)))
 # run lhcpost to get input parameters
@@ -85,12 +85,12 @@ class LifeDeskDB(object):
     for ff in 'emit.txt intensity.txt lossrate.txt luminosity.txt'.split():
       if os.path.isfile(os.path.join(ltr_dir,ff)):
         os.remove(os.path.join(ltr_dir,ff))
-        print 'deleted file %s'%(ff)
+        if verbose: print 'deleted file %s'%(ff)
 # create new output files
-    print '... calling script %s/lhcpost'%(script_path)
+    if verbose: print '... calling script %s/lhcpost'%(script_path)
     p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE)
     stdout,stderr=p.communicate()
-    print stdout
+    if verbose: print stdout
     if stderr != None:
       print "ERROR while executing command lhcpost %s %s:"%(ltr_dir,ltr_file)
       print stderr
@@ -100,7 +100,8 @@ class LifeDeskDB(object):
       if not os.path.isfile(os.path.join(ltr_dir,ff)):
         print "ERROR when calling output.sh: file %s has not been generated!"%ff
         check=False
-    if check: print "... created emit.txt, intensity.txt, lossrate.txt, luminosity.txt"
+    if check:
+      print "... created emit.txt, intensity.txt, lossrate.txt, luminosity.txt"
 # -- get input parameters
     lout=stdout.split('\n')
     input_param={}
@@ -129,6 +130,9 @@ class LifeDeskDB(object):
     intensity        = np.loadtxt('%s/intensity.txt'%(ltr_dir))
     lumi             = np.loadtxt('%s/luminosity.txt'%(ltr_dir))
     loss             = np.genfromtxt('%s/lossrate.txt'%(ltr_dir),missing_values='************',filling_values=0)
+    # for loop over sigm,lumi,loss,intensity didn't work -> fix this
+    if len(lumi) == 0:
+      lumi = np.array([float('nan') for i in range(len(nturn))])
     data_flat = (np.column_stack((step,nturn,time,emit1,emit2,sigm,intensity,lumi,loss))).ravel()
     ftype=[('step',float),('nturn',float),('time',float),('emit1',float),('emit2',float),('sigm',float),('intensity',float),('luminosity',float),('lossrate',float)]
     data = data_flat.view(ftype)
@@ -225,7 +229,7 @@ class LifeDeskDB(object):
           pl.xlim([-6,6])
           pl.xlabel(r'$\sigma$')
           pl.ylabel(r'count')
-  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,alpha=1.0,linestyle='-',marker='o',indstep=None):
+  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
@@ -256,14 +260,13 @@ class LifeDeskDB(object):
     nlabels = len(pl.gca().get_legend_handles_labels()[1])
     if (nlabels <=4) : ncol = 1
     elif (nlabels > 5 and nlabels <=8): ncol = 2
-    else:
-      ncol = 3
+    else: ncol = 3
     # legend on top
-      pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
-      pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
-#      # legend on right side
-#      legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,fontsize=12)
-#      pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
+    pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
+    pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
+#    # legend on right side
+#    legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,fontsize=12)
+#    pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
     pl.grid()
   def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
     """plots emittance, bunch length, intensity
@@ -278,7 +281,7 @@ class LifeDeskDB(object):
     for p in ['emit1','emit2','sigm','intensity','luminosity','lossrate']:
       pl.figure(p)
       try:
-        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,alpha=alpha,linestyle=linestyle)
+        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
         if export != None:
           print '%s.%s'%(p,export)
           pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
