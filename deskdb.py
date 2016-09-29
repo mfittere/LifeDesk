@@ -1,4 +1,5 @@
 import os as os
+h
 import sys as sys
 from subprocess import Popen,PIPE
 from inspect import getfile
@@ -60,7 +61,7 @@ class LifeDeskDB(object):
 # dictionary which stores the lbls and units
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
   @classmethod
-  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=True):
+  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=True,force=False):
     '''create LifeDeskDB class object from dat
     in directory ltr_dir.
     Parameters:
@@ -81,27 +82,33 @@ class LifeDeskDB(object):
     if(plt_dir=='.'): plt_dir= os.getcwd()
     if not os.path.isdir(plt_dir):
       os.makedirs(plt_dir)
-# delete old output files
-    for ff in 'emit.txt intensity.txt lossrate.txt luminosity.txt'.split():
-      if os.path.isfile(os.path.join(ltr_dir,ff)):
-        os.remove(os.path.join(ltr_dir,ff))
+    outputfiles='emit.txt intensity.txt lossrate.txt luminosity.txt'
+# check if outputfiles exist and delete old output files if force = True
+    check=True
+    for ff in outputfiles.split():
+      if not os.path.isfile(os.path.join(ltr_dir,ff)) and check == True:
+        check = False
+    if force == True or check == False:
+      if os.path.isfile(os.path.join(ltr_dir,ff)): os.remove(os.path.join(ltr_dir,ff))
         if verbose: print 'deleted file %s'%(ff)
 # create new output files
-    if verbose: print '... calling script %s/lhcpost'%(script_path)
-    p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE)
-    stdout,stderr=p.communicate()
-    if verbose: print stdout
-    if stderr != None:
-      print "ERROR while executing command lhcpost %s %s:"%(ltr_dir,ltr_file)
-      print stderr
-      return
-    check=True
-    for ff in 'emit.txt intensity.txt lossrate.txt luminosity.txt'.split():
-      if not os.path.isfile(os.path.join(ltr_dir,ff)):
-        print "ERROR when calling output.sh: file %s has not been generated!"%ff
-        check=False
-    if check:
-      print "... created emit.txt, intensity.txt, lossrate.txt, luminosity.txt"
+      if verbose: print '... calling script %s/lhcpost'%(script_path)
+      p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE)
+      stdout,stderr=p.communicate()
+      if verbose: print stdout
+      if stderr != None:
+        print "ERROR while executing command lhcpost %s %s:"%(ltr_dir,ltr_file)
+        print stderr
+        return
+      check=True
+      for ff in outputfiles.split():
+        if not os.path.isfile(os.path.join(ltr_dir,ff)):
+          print "ERROR when calling output.sh: file %s has not been generated!"%ff
+          check=False
+      if check:
+        print '... created %s'%outputfiles
+    else:
+       print '... outpufiles %s already exist'%(outputfiles)
 # -- get input parameters
     lout=stdout.split('\n')
     input_param={}
