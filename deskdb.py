@@ -1,8 +1,8 @@
 import os as os
-h
 import sys as sys
 from subprocess import Popen,PIPE
 from inspect import getfile
+from utilities import grep
 
 try:
   import numpy as np
@@ -19,6 +19,7 @@ mycolors=['b','r','g','m','orange','pink','cyan','indigo','lime']
 def colorrotate():
   c=mycolors.pop(0);mycolors.append(c)
   return c
+
 def gaussian(x,mean,sigma):
 #  return np.exp(-((x-mean)**2)/(2*sigma**2))/(np.sqrt(2*sigma**2*np.pi))
   return np.exp(-((x-mean)**2)/(2*sigma**2))
@@ -52,16 +53,25 @@ class LifeDeskDB(object):
           is called)
       'header' : mean,sigma and norm of histograms
       'data'   : histogram data
+    loss: amplitudes and at which aperture lost (only
+          filled if self.get_loss() is called)
+      'dist' : input distribution used
+      'init' : structured array with
+          losses in first 2 turns (adjustment
+          of distribution)
+      'all' : structured array with losses after 
+          first 2 turns
     """
     if(ltr_dir=='.'): ltr_dir= os.getcwd()
     self.lifedeskenv={'ltr_dir':ltr_dir,'ltr_file':ltr_file,'plt_dir':plt_dir}
     self.input_param=input_param
     self.data = data
     self.hist = {}
+    self.loss = {}
 # dictionary which stores the lbls and units
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
   @classmethod
-  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=True,force=False):
+  def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=False):
     '''create LifeDeskDB class object from dat
     in directory ltr_dir.
     Parameters:
@@ -86,10 +96,8 @@ class LifeDeskDB(object):
 # check if outputfiles exist and delete old output files if force = True
     check=True
     for ff in outputfiles.split():
-      if not os.path.isfile(os.path.join(ltr_dir,ff)) and check == True:
-        check = False
-    if force == True or check == False:
-      if os.path.isfile(os.path.join(ltr_dir,ff)): os.remove(os.path.join(ltr_dir,ff))
+      if os.path.isfile(os.path.join(ltr_dir,ff)):
+        os.remove(os.path.join(ltr_dir,ff))
         if verbose: print 'deleted file %s'%(ff)
 # create new output files
       if verbose: print '... calling script %s/lhcpost'%(script_path)
@@ -105,10 +113,8 @@ class LifeDeskDB(object):
         if not os.path.isfile(os.path.join(ltr_dir,ff)):
           print "ERROR when calling output.sh: file %s has not been generated!"%ff
           check=False
-      if check:
+      if check and verbose:
         print '... created %s'%outputfiles
-    else:
-       print '... outpufiles %s already exist'%(outputfiles)
 # -- get input parameters
     lout=stdout.split('\n')
     input_param={}
@@ -152,7 +158,7 @@ class LifeDeskDB(object):
     print 'tracking directory: ltr_dir  = %s'%(self.lifedeskenv['ltr_dir'])
     print 'output file name  : ltr_file = %s'%(self.lifedeskenv['ltr_file'])
     print 'plot directory: plt_dir  = %s'%(self.lifedeskenv['plt_dir'])
-  def get_hist(self,fn='lhc.hist'):
+  def get_hist(self,fn='lhc.hist',verbose=False):
     """read in histogram data from file *fn*
     and store in self.hist with:
     'header' : header data containing
@@ -168,15 +174,15 @@ class LifeDeskDB(object):
     data = np.array([])
     header = {}
     if not os.path.isfile(fna) and self.hist=={}:
-      print "ERROR: file %s does not exist!"%fn
+      if verbose: print "ERROR: file %s does not exist!"%fn
     else:
-      print "... getting histogram data from %s"%fn
+      if verpose: print "... getting histogram data from %s"%fn
       #read in histogram data
-      print "reading data"
+      if verbose: print "reading data"
       ftype=[('val','f8'),('x','f8'),('px','f8'),('ax','f8'),('y','f8'),('py','f8'),('ay','f8'),('z','f8'),('pz','f8'),('az','f8'),('parity','S2'),('step','S100')]
       data = np.loadtxt(fna,comments='#',dtype=ftype)
       # read in header with statistical data
-      print "reading header with statistical data"
+      if verbose: print "reading header with statistical data"
       ff=open(fna,'r')
       header={}
       htype=[('mean','6f8'),('sigm','6f8'),('norm','6f8'),('emit','6f8')]
@@ -236,6 +242,62 @@ class LifeDeskDB(object):
           pl.xlim([-6,6])
           pl.xlabel(r'$\sigma$')
           pl.ylabel(r'count')
+  def get_loss(self,fndist=None,verbose=False):
+    """get amplitudes and aperture for lost
+    particles
+    
+    Parameters
+    ----------
+    fndist: path to input distribution
+            if fndist = None (default) then the
+            distribution name is taken from the
+            ltr file and loaded from the distributions
+            folder in LifeDesk
+    verbose: verbose mode
+    
+    Returns:
+    --------
+    dictionary self.loss with
+    'dist': input distribution
+    'init': losses in first 2 turns
+    'all': losses after first two turns
+
+    parameters of structured array:
+    x,px,y,py,z,pz: normalized coordinates in sigma
+    weight: weight in distribution
+    turn: turn number when particle got lost
+    why: at which aperture it got lost, e.g. AX or AY
+    """
+    # absolute path to ltr file
+    fnltr=os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'])
+    # get input distribution file, check that only one is defined
+    fndist=grep('Distr_init',fnltr)
+    if len(fndist)==0:
+      print 'ERROR: no input distribution found!'
+      return
+    elif len(fndist)>1:
+      print 'ERROR: more than one input distribution found in %s'%fn
+      return
+    else:
+      fndist=(fndist[0].rstrip().split('/'))[-1]
+      if verbose: print '... input distribution used %s'%fndist
+# get path to distribution and inilost.sh files in LifeDesk directory
+    dist_path='%s/distributions/%s'%(os.path.dirname(getfile(LifeDeskDB)),fndist)
+    script_path='%s/scripts'%(os.path.dirname(getfile(LifeDeskDB)))
+    if verbose: print "... calling script %s/inilost.sh %s %s"%(script_path,fnltr,dist_path)
+    p = Popen(['%s/inilost.sh'%(script_path),fnltr,dist_path], stdout=PIPE,stderr=PIPE)
+    stdout,stderr=p.communicate()
+    if verbose: print stdout
+    if stderr != None:
+      print "ERROR while executing command %s/inilost.sh %s %s"%(script_path,fnltr,dist_path)
+      print stderr
+    # path to input distribution
+    self.loss['dist']=dist_path
+    # get the losses and amplitudes
+    ftype=[('x','f8'),('px','f8'),('y','f8'),('py','f8'),('z','f8'),('pz','f8'),('weight','f8'),('turn','f8'),('why','S100')]
+    for fn,par in [('inilost.1.out','init'),('inilost.out','all')]:
+      self.loss[par]=np.loadtxt(os.path.join(self.lifedeskenv['ltr_dir'],fn),comments='#',dtype=ftype)
+      
   def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
     """plot *xaxis* vs *yaxis*
     Parameters:
@@ -271,10 +333,8 @@ class LifeDeskDB(object):
     # legend on top
     pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
     pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
-#    # legend on right side
-#    legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,fontsize=12)
-#    pl.subplots_adjust(left=0.15, right=0.8, top=0.1, bottom=0.1)
     pl.grid()
+
   def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
