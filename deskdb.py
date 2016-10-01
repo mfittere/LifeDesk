@@ -15,6 +15,9 @@ except ImportError:
   print "No module found: numpy matplotlib and scipy modules should be present to run sixdb"
   raise ImportError
 
+import numpy.lib.recfunctions as rfn
+from matplotlib.colors import LogNorm
+
 mycolors=['b','r','g','m','orange','pink','cyan','indigo','lime']
 def colorrotate():
   c=mycolors.pop(0);mycolors.append(c)
@@ -54,7 +57,7 @@ class LifeDeskDB(object):
       'header' : mean,sigma and norm of histograms
       'data'   : histogram data
     loss: amplitudes and at which aperture lost (only
-          filled if self.get_loss() is called)
+          filled if self.getloss() is called)
       'dist' : input distribution used
       'init' : structured array with
           losses in first 2 turns (adjustment
@@ -70,6 +73,13 @@ class LifeDeskDB(object):
     self.loss = {}
 # dictionary which stores the lbls and units
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
+    for c in 'x y z'.split():
+      self._unit[c]=('initial %s normalized'%(c),'[$\sigma$]')
+      self._unit['p'+c]=('initial $p_%s$ normalized'%(c),'[$\sigma$]')
+    for c in 'ax ay az'.split():
+      plane=c.split('a')[-1]
+      self._unit[c]=('initial normalized amplitude in (%s,p%s)'%(plane,plane),'[$\sigma$]')
+    self._unit['ar']=('initial radius $r=\sqrt{a_x**2+a_y**2}$','[$\sigma$]')
   @classmethod
   def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=False):
     '''create LifeDeskDB class object from dat
@@ -242,7 +252,7 @@ class LifeDeskDB(object):
           pl.xlim([-6,6])
           pl.xlabel(r'$\sigma$')
           pl.ylabel(r'count')
-  def get_loss(self,fndist=None,verbose=False):
+  def getloss(self,fndist=None,verbose=False):
     """get amplitudes and aperture for lost
     particles
     
@@ -268,10 +278,8 @@ class LifeDeskDB(object):
     turn: turn number when particle got lost
     why: at which aperture it got lost, e.g. AX or AY
     """
-    # absolute path to ltr file
-    fnltr=os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'])
     # get input distribution file, check that only one is defined
-    fndist=grep('Distr_init',fnltr)
+    fndist=grep('Distr_init',os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file']))
     if len(fndist)==0:
       print 'ERROR: no input distribution found!'
       return
@@ -284,20 +292,41 @@ class LifeDeskDB(object):
 # get path to distribution and inilost.sh files in LifeDesk directory
     dist_path='%s/distributions/%s'%(os.path.dirname(getfile(LifeDeskDB)),fndist)
     script_path='%s/scripts'%(os.path.dirname(getfile(LifeDeskDB)))
-    if verbose: print "... calling script %s/inilost.sh %s %s"%(script_path,fnltr,dist_path)
-    p = Popen(['%s/inilost.sh'%(script_path),fnltr,dist_path], stdout=PIPE,stderr=PIPE)
+    if verbose: print "... calling script %s/inilost.sh %s %s %s"%(script_path,self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path)
+    p = Popen(['%s/inilost.sh'%(script_path),self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path], stdout=PIPE,stderr=PIPE)
     stdout,stderr=p.communicate()
     if verbose: print stdout
     if stderr != None:
-      print "ERROR while executing command %s/inilost.sh %s %s"%(script_path,fnltr,dist_path)
+      print "ERROR while executing command %s/inilost.sh %s %s %s"%(script_path,self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path)
       print stderr
     # path to input distribution
     self.loss['dist']=dist_path
     # get the losses and amplitudes
-    ftype=[('x','f8'),('px','f8'),('y','f8'),('py','f8'),('z','f8'),('pz','f8'),('weight','f8'),('turn','f8'),('why','S100')]
+    ftype=[('x','f8'),('px','f8'),('y','f8'),('py','f8'),('z','f8'),('pz','f8'),('weight','f8'),('nturn','f8'),('why','S100')]
     for fn,par in [('inilost.1.out','init'),('inilost.out','all')]:
-      self.loss[par]=np.loadtxt(os.path.join(self.lifedeskenv['ltr_dir'],fn),comments='#',dtype=ftype)
-      
+      # get data
+      data1 = np.loadtxt(os.path.join(self.lifedeskenv['ltr_dir'],fn),comments='#',dtype=ftype)
+      # calculate time and amplitue
+      clight = 299792458 # speed of light
+      gamma  = self.input_param['gamma']
+      beta   = np.sqrt(1-1/gamma**2)
+      time   = data1['nturn']*self.input_param['circlhc']/(beta*clight) # time [s]
+      ax     = np.sqrt(data1['x']**2 + data1['px']**2)
+      ay     = np.sqrt(data1['y']**2 + data1['py']**2)
+      az     = np.sqrt(data1['z']**2 + data1['pz']**2)
+      ar     = np.sqrt(ax**2 + ay**2)
+      data2=np.array(zip(time,ax,ay,az,ar),dtype=[('time','f8'),('ax','f8'),('ay','f8'),('az','f8'),('ar','f8')])
+      self.loss[par] = rfn.merge_arrays((data1, data2), asrecarray=True, flatten=True)
+  def plot_loss_2d(self,xaxis='ax',yaxis='time',bins=50,log=True):
+    """make a 2d histogram of losses"""
+    if log:
+      pl.hist2d(self.loss['all'][xaxis],self.loss['all'][yaxis],bins=bins,norm=LogNorm())
+    else:
+      pl.hist2d(self.loss['all'][xaxis],self.loss['all'][yaxis],bins=bins)
+    clb = pl.colorbar()
+    clb.set_label('$\log(N_{\mathrm{lost}})$',fontsize=14)
+    pl.xlabel(r'%s %s'%self._unit[xaxis])
+    pl.ylabel(r'%s %s'%self._unit[yaxis])
   def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
     """plot *xaxis* vs *yaxis*
     Parameters:
