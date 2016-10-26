@@ -74,7 +74,10 @@ class LifeDeskDB(object):
     self.hist = {}
     self.loss = {}
 # dictionary which stores the lbls and units
+    # unnormalized
     self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
+    # normalized to the initial value
+    self._unitnorm = {'emit1':('hor. emittance $\epsilon_x/\epsilon_{x,0}$',''),'emit2':('vert. emittance $\epsilon_y/\epsilon_{y,0}$',''),'sigm':(r'bunch length $\sigma/\sigma_0$','')}
     for c in 'x y z'.split():
       self._unit[c]=('initial %s normalized'%(c),'[$\sigma$]')
       self._unit['p'+c]=('initial $p_%s$ normalized'%(c),'[$\sigma$]')
@@ -407,16 +410,14 @@ class LifeDeskDB(object):
     clb.set_label('$\log(N_{\mathrm{lost}})$',fontsize=14)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
-  def plot_2d(self,xaxis='time',yaxis='emit1',color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
+  def plot_2d(self,xaxis='time',yaxis='emit1',norm=False,color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
     param   : hor. (mode=1) or vert. (mode=2) emittance
     tunit   : 'nturn': number of turns
               'time' : time [s]
-    norm    : eps = beta*gamma*epsn
-              false: rms emittance eps [mum]
-              true : normalized emittance epsn [mum]
+    norm    : normalize variable to initial value
     indstep : make plots for each steplength, e.g. if
               different stplength are used, create a 
               different plot for each steplength
@@ -429,9 +430,11 @@ class LifeDeskDB(object):
         print '%s not found in data'%n
         return 0
     x,y = self.data[xaxis],self.data[yaxis]
+    if norm: y=y/y[0]
     pl.plot(x,y,linestyle=linestyle,marker=marker,color=color,label=lbl,alpha=alpha)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
-    pl.ylabel(r'%s %s'%self._unit[yaxis])
+    if norm: pl.ylabel(r'%s %s'%self._unitnorm[yaxis])
+    else: pl.ylabel(r'%s %s'%self._unit[yaxis])
     # place the legend to the outside of the plot
     box = pl.gca().get_position()
     # if more than 4 entries, take two columns, otherwise one
