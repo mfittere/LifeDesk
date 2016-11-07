@@ -191,7 +191,7 @@ class LifeDeskDB(object):
     if not os.path.isfile(fna) and self.hist=={}:
       if verbose: print "ERROR: file %s does not exist!"%fn
     else:
-      if verpose: print "... getting histogram data from %s"%fn
+      if verbose: print "... getting histogram data from %s"%fn
       #read in histogram data
       if verbose: print "reading data"
       ftype=[('val','f8'),('x','f8'),('px','f8'),('ax','f8'),('y','f8'),('py','f8'),('ay','f8'),('z','f8'),('pz','f8'),('az','f8'),('parity','S2'),('step','S100')]
@@ -232,8 +232,9 @@ class LifeDeskDB(object):
       turn are used
     fit: plot Gaussian fit
     res: if res=True the difference (residual)
-         between the first histograms (n0) and
-         the other histograms (n1,n2,...) is plotted
+         and the ratio (ratio) between the
+         first histograms (n0) and the other 
+         histograms (n1,n2,...) is plotted
          in a separte subplot. The list of histogams
          is given by nstep=[n0,n1,...].
     """
@@ -273,9 +274,9 @@ class LifeDeskDB(object):
             else:
               bins = data_step0['val'][vals_step0]
               residual = (data[p][vals]-data_step0[p][vals_step0])*100
-              residual_log = data[p][vals]/data_step0[p][vals_step0]
+              ratio = data[p][vals]/data_step0[p][vals_step0]
               ax1.plot(bins,residual,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
-              ax2.plot(bins,residual_log,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
+              ax2.plot(bins,ratio,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
           if res: axes = [ax0,ax1,ax2]
           else: axes = [ax0]
           for ax in axes:
@@ -287,11 +288,11 @@ class LifeDeskDB(object):
           if log == True: ax0.set_yscale('log')
           if res:
             ax1.set_title(r'$\mathrm{residual = v(turn \ %s) - v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
-            ax2.set_title(r'$\mathrm{residual = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
+            ax2.set_title(r'$\mathrm{ratio = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
             ax1.legend(loc='upper right',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
             ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
             ax1.set_ylabel(r'residual [%]')
-            ax2.set_ylabel(r'residual')
+            ax2.set_ylabel(r'ratio')
             ax2.set_yscale('log')
     pl.tight_layout()
   def mk_hist_video(self,fn='lhc.hist',nstep=None,fit=True,log=True,res=True,plt_dir=None,export=False,verbose=False,ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],delay=20):
