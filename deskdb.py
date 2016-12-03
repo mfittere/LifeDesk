@@ -1,9 +1,9 @@
-import os as os
-import sys as sys
+import os
+import sys
 from subprocess import Popen,PIPE
 from inspect import getfile
 from matplotlib import gridspec
-import shutil as shutil
+import shutil
 from utilities import grep
 
 try:
