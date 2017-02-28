@@ -458,7 +458,6 @@ class LifeDeskDB(object):
     box = pl.gca().get_position()
     # if more than 4 entries, take two columns, otherwise one
     nlabels = len(pl.gca().get_legend_handles_labels()[1])
-    print nlabels
     if (nlabels <=4) : ncol = 1
     elif (nlabels > 5 and nlabels <=8): ncol = 2
     else: ncol = 3
