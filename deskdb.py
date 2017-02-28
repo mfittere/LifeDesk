@@ -225,8 +225,10 @@ class LifeDeskDB(object):
     while histograms usually extend further.
     Parameters:
     fn:    filename with histogram data
-    plane: plane, options are x,px,ax,y,py,ay,z,pz,az with
-      ax,ay,az being the normalized amplitude
+    plane: plane, options are
+             1) physical coordinates: x,px,y,py,z,pz
+             2) normalized amplitudes: ax,ay,az
+             3) radius: r=sqrt(ax**2+ay**2)
     nstep: list of steps for which the histogram is plotted,
       e.g. [1,5,10]. If nturn=None, then the first and last 
       turn are used
@@ -243,7 +245,7 @@ class LifeDeskDB(object):
     else:
       # map plane to array in self.hist['header'][*]
       hist_keys={'x':0,'px':1,'y':2,'py':3,'z':4,'pz':5}
-      lbl_keys={'x':'x','px':'p_x','y':'y','py':'p_y','z':'z','pz':'p_z'}
+      lbl_keys={'x':'x','px':'p_x','y':'y','py':'p_y','z':'z','pz':'p_z','ax':'ax','ay':'ay','r':'r'}
       if nstep == None:
         steps=self.hist['header'].keys()
         nstep=[steps[0],steps[-1]]
@@ -259,31 +261,47 @@ class LifeDeskDB(object):
         fit = (self.hist['header'][step]) 
         width = data['val'][1]-data['val'][0]
         for p in list(plane):
-          myplot=pl.plot(data['val'],data[p],ls='steps',label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
+          # get the data
+          xdata = data['val']
+          if p == 'r':
+            ydata = np.sqrt(data['ax']**2+data['ay']**2)
+          else:
+            ydata = data[p]
+          myplot=pl.plot(xdata,ydata,ls='steps',label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
           c=myplot[-1].get_color()
-          if verbose: print fit['norm'][hist_keys[p]]
-          ax0.plot(data['val'],gaussian(data['val'],0,fit['norm'][hist_keys[p]]),linestyle='--',color=c)
+          if p in ['x','px','y','py','z','pz']:
+            ax0.plot(xdata,gaussian(xdata,0,fit['norm'][hist_keys[p]]),linestyle='--',color=c)
+            if verbose: print fit['norm'][hist_keys[p]]
           if step != nstep[0]:
             # intersept the histogram bins, plot only bins for which interseption exists
             data_step0 = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[0]]
-            vals_intersept = np.array(list(set(data['val']) & set(data_step0['val'])))
-            vals_step0 = np.array([ x in vals_intersept for x in data_step0['val'] ])
-            vals = np.array([ x in vals_intersept for x in data['val'] ])
-            if np.max(np.abs(data_step0['val'][vals_step0]-data['val'][vals]))>0:
+            xdata0=data_step0['val']
+            if p == 'r':
+              ydata0 = np.sqrt(data_step0['ax']**2+data_step0['ay']**2)
+            else:
+              ydata0 = data_step0[p]
+            vals_intersept = np.array(list(set(xdata) & set(xdata0)))
+            vals_step0 = np.array([ x in vals_intersept for x in xdata0 ])
+            vals = np.array([ x in vals_intersept for x in xdata ])
+            if np.max(np.abs(xdata0[vals_step0]-xdata[vals]))>0:
               print 'ERROR: something went wrong! The bins of the data for step %s and %s do not agree'%(nstep[0],step)
             else:
-              bins = data_step0['val'][vals_step0]
-              residual = (data[p][vals]-data_step0[p][vals_step0])*100
-              ratio = data[p][vals]/data_step0[p][vals_step0]
+              bins = xdata0[vals_step0]
+              residual = (ydata[vals]-ydata0[vals_step0])*100
+              ratio = ydata[vals]/ydata0[vals_step0]
               ax1.plot(bins,residual,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
               ax2.plot(bins,ratio,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
           if res: axes = [ax0,ax1,ax2]
           else: axes = [ax0]
           for ax in axes:
-            ax.set_xlim([-6,6])
+            if p in ['r','ax','ay','az']:
+              ax.set_xlim([0,6])
+              ax0.legend(loc='lower left',fontsize=12)
+            else:
+              ax.set_xlim([-6,6])
+              ax0.legend(loc='upper right',fontsize=12)
             ax.set_xlabel(r'$\sigma$',fontsize=12)
             ax.grid(b=True)
-          ax0.legend(loc='upper right',fontsize=12)
           ax0.set_ylabel(r'count')
           if log == True: ax0.set_yscale('log')
           if res:
@@ -440,12 +458,13 @@ class LifeDeskDB(object):
     box = pl.gca().get_position()
     # if more than 4 entries, take two columns, otherwise one
     nlabels = len(pl.gca().get_legend_handles_labels()[1])
+    print nlabels
     if (nlabels <=4) : ncol = 1
     elif (nlabels > 5 and nlabels <=8): ncol = 2
     else: ncol = 3
     # legend on top
     pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
-    pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
+    pl.subplots_adjust(left=0.15, right=0.95, top=0.68, bottom=0.1)
     pl.grid()
 
   def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
