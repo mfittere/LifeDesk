@@ -67,7 +67,10 @@ class LifeDeskDB(object):
       'all' : structured array with losses after 
           first 2 turns
     """
-    if(ltr_dir=='.'): ltr_dir= os.getcwd()
+    ltr_dir=os.path.abspath(ltr_dir)
+    if not os.path.isdir(ltr_dir):
+      print('ERROR: Directory %s not found!'%ltr_dir)
+      return
     self.lifedeskenv={'ltr_dir':ltr_dir,'ltr_file':ltr_file,'plt_dir':plt_dir}
     self.input_param=input_param
     self.data = data
@@ -84,7 +87,7 @@ class LifeDeskDB(object):
     for c in 'ax ay az'.split():
       plane=c.split('a')[-1]
       self._unit[c]=('initial normalized amplitude in (%s,p%s)'%(plane,plane),'[$\sigma$]')
-    self._unit['ar']=('initial radius $r=\sqrt{a_x**2+a_y**2}$','[$\sigma$]')
+    self._unit['ar']=('initial radius $r=\sqrt{a_x^2+a_y^2}$','[$\sigma$]')
   @classmethod
   def getdata(cls,ltr_dir='.',ltr_file='lhc.ltr',plt_dir='.',verbose=False):
     '''create LifeDeskDB class object from dat
@@ -380,29 +383,43 @@ class LifeDeskDB(object):
     turn: turn number when particle got lost
     why: at which aperture it got lost, e.g. AX or AY
     """
+    lifedeskdir=os.path.dirname(getfile(LifeDeskDB))
+    inputfile=os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'])
     # get input distribution file, check that only one is defined
-    fndist=grep('Distr_init',os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file']))
-    if len(fndist)==0:
-      print 'ERROR: no input distribution found!'
+    if fndist is None:
+      fndist=grep('Distr_init',inputfile)
+      if len(fndist)==0:
+        print 'ERROR: no input distribution found!'
+        return
+      elif len(fndist)>1:
+        print 'ERROR: more than one input distribution found in %s'%fn
+        return
+      else:
+        fndist=(fndist[0].rstrip().split('/'))[-1]
+        if verbose: print '... input distribution used %s'%fndist
+      # get path to distribution and inilost.sh files in LifeDesk directory
+      fndist='%s/distributions/%s'%(lifedeskdir,fndist)
+    if not os.path.isfile(fndist):
+      print('ERROR: distribution file %s not found!'%fndist)
       return
-    elif len(fndist)>1:
-      print 'ERROR: more than one input distribution found in %s'%fn
-      return
-    else:
-      fndist=(fndist[0].rstrip().split('/'))[-1]
-      if verbose: print '... input distribution used %s'%fndist
-# get path to distribution and inilost.sh files in LifeDesk directory
-    dist_path='%s/distributions/%s'%(os.path.dirname(getfile(LifeDeskDB)),fndist)
-    script_path='%s/scripts'%(os.path.dirname(getfile(LifeDeskDB)))
-    if verbose: print "... calling script %s/inilost.sh %s %s %s"%(script_path,self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path)
-    p = Popen(['%s/inilost.sh'%(script_path),self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path], stdout=PIPE,stderr=PIPE)
+    script_path='%s/scripts'%(lifedeskdir)
+    if verbose:
+      print "... calling script %s/inilost.sh %s %s"%(script_path,
+        inputfile,fndist)
+    # go to study directory
+    cwd = os.getcwd()
+    os.chdir(self.lifedeskenv['ltr_dir'])
+    p = Popen(['%s/inilost.sh'%(script_path),inputfile,fndist], stdout=PIPE,stderr=PIPE)
     stdout,stderr=p.communicate()
-    if verbose: print stdout
-    if stderr != None:
-      print "ERROR while executing command %s/inilost.sh %s %s %s"%(script_path,self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'],dist_path)
+    os.chdir(cwd)
+    if verbose:
+      print stdout
+    if stderr != None and 'grep' not in stderr:
+      print "ERROR while executing command %s/inilost.sh %s %s"%(script_path,inputfile,fndist)
       print stderr
+      return
     # path to input distribution
-    self.loss['dist']=dist_path
+    self.loss['dist']=fndist
     # get the losses and amplitudes
     ftype=[('x','f8'),('px','f8'),('y','f8'),('py','f8'),('z','f8'),('pz','f8'),('weight','f8'),('nturn','f8'),('why','S100')]
     for fn,par in [('inilost.1.out','init'),('inilost.out','all')]:
@@ -421,6 +438,12 @@ class LifeDeskDB(object):
       self.loss[par] = rfn.merge_arrays((data1, data2), asrecarray=True, flatten=True)
   def plot_loss_2d(self,xaxis='ax',yaxis='time',bins=50,log=True):
     """make a 2d histogram of losses"""
+    if self.loss == {}:
+      print('Losses have not been generated or failed. Try self.getloss()!')
+      return 'Failed'
+    if len(self.loss['all'])==0:
+      print('WARNING: No lost particles. Aborting!')
+      return 'Failed'
     if log:
       pl.hist2d(self.loss['all'][xaxis],self.loss['all'][yaxis],bins=bins,norm=LogNorm())
     else:
@@ -458,9 +481,12 @@ class LifeDeskDB(object):
     box = pl.gca().get_position()
     # if more than 4 entries, take two columns, otherwise one
     nlabels = len(pl.gca().get_legend_handles_labels()[1])
-    if (nlabels <=4) : ncol = 1
-    elif (nlabels > 5 and nlabels <=8): ncol = 2
-    else: ncol = 3
+    if (nlabels <=4) :
+      ncol = 1
+    elif (nlabels >= 5 and nlabels <=8):
+      ncol = 2
+    else:
+      ncol = 3
     # legend on top
     pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
     pl.subplots_adjust(left=0.15, right=0.95, top=0.68, bottom=0.1)
