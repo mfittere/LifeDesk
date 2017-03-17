@@ -411,7 +411,7 @@ class LifeDeskDB(object):
     clb.set_label('$\log(N_{\mathrm{lost}})$',fontsize=14)
     pl.xlabel(r'%s %s'%self._unit[xaxis])
     pl.ylabel(r'%s %s'%self._unit[yaxis])
-  def plot_2d(self,xaxis='time',yaxis='emit1',norm=False,color='b',lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
+  def plot_2d(self,xaxis='time',yaxis='emit1',norm=False,color=None,lbl=None,title=None,alpha=1.0,linestyle='-',marker='o',indstep=None,verbose=False):
     """plot *xaxis* vs *yaxis*
     Parameters:
     -----------
@@ -448,7 +448,7 @@ class LifeDeskDB(object):
     pl.subplots_adjust(left=0.15, right=0.95, top=0.7, bottom=0.1)
     pl.grid()
 
-  def plot_all(self,color='b',lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
+  def plot_all(self,color=None,lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
     
