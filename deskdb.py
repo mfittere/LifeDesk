@@ -5,6 +5,7 @@ from inspect import getfile
 from matplotlib import gridspec
 import shutil
 from utilities import grep
+from scipy.stats import norm
 
 try:
   import numpy as np
@@ -310,7 +311,8 @@ class LifeDeskDB(object):
           if res:
             ax1.set_title(r'$\mathrm{residual = v(turn \ %s) - v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
             ax2.set_title(r'$\mathrm{ratio = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
-            ax1.legend(loc='upper right',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+#            ax1.legend(loc='upper right',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+            ax1.legend(loc='lower left',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
             ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
             ax1.set_ylabel(r'residual [%]')
             ax2.set_ylabel(r'ratio')
@@ -436,6 +438,43 @@ class LifeDeskDB(object):
       ar     = np.sqrt(ax**2 + ay**2)
       data2=np.array(zip(time,ax,ay,az,ar),dtype=[('time','f8'),('ax','f8'),('ay','f8'),('az','f8'),('ar','f8')])
       self.loss[par] = rfn.merge_arrays((data1, data2), asrecarray=True, flatten=True)
+  def getlifetime(self,sigma=1,verbose=False):
+    """
+    calculate the lifetime. fndist is assumed to be
+    uniform in x,y and xp=yp=0. The lifetime is caluclated
+    for a Gaussian distribution with sigma *sigma*
+    by folding the uniform distribution with the Gaussian
+    Parameter:
+    ----------
+    sigma: sigma of Gaussian distribution
+    
+    Returns:
+    --------
+    tau: lifetime [h]
+    """
+    lifedeskdir=os.path.dirname(getfile(LifeDeskDB))
+    inputfile=os.path.join(self.lifedeskenv['ltr_dir'],self.lifedeskenv['ltr_file'])
+    fndist=self.loss['dist']
+    # format x,xp,y,yp,z,delta,weight,particle number
+    dist0=np.loadtxt(fndist,skiprows=1)
+    if np.any(dist0[:,1]) !=0:
+      print('ERROR: xp must be 0!')
+    if np.any(dist0[:,3]) !=0:
+      print('ERROR: yp must be 0!')
+    # the number of paricles is proportional to 
+    # N0    = sum(x*gauss(x,sigma)*y*gauss(y,sigma))
+    # Nlost(t) = sum(x_lost*gauss(x_lost,sigma)*y_lost*gauss(y_lost,sigma))
+    # => N(t)=N0-Nlost(t)
+    # the lifetime can be obtained with:
+    # tau = t/(ln(N)-ln(N0))
+    x0,y0=dist0[:,0],dist0[:,2]
+    xlost,ylost = self.loss['all']['x'],self.loss['all']['y']
+    N0=np.sum(norm.pdf(x0,0,sigma)*norm.pdf(y0,0,sigma))
+    Nlost = np.sum(norm.pdf(xlost,0,sigma)*norm.pdf(ylost,0,sigma))
+    N = N0-Nlost
+    # get the time interval
+    dt = self.data['time'][-1]-self.data['time'][0]
+    return dt/(np.log(N0)-np.log(N))/(60*60)
   def plot_loss_2d(self,xaxis='ax',yaxis='time',bins=50,log=True):
     """make a 2d histogram of losses"""
     if self.loss == {}:
