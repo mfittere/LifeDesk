@@ -163,7 +163,7 @@ class LifeDeskDB(object):
     loss             = np.genfromtxt('%s/lossrate.txt'%(ltr_dir),missing_values='************',filling_values=0)
     # for loop over sigm,lumi,loss,intensity didn't work -> fix this
     if len(lumi) == 0:
-      lumi = np.array([float('nan') for i in range(len(nturn))])
+      lumi = np.array([0 for i in range(len(nturn))])
     data_flat = (np.column_stack((step,nturn,time,emit1,emit2,sigm,intensity,lumi,loss))).ravel()
     ftype=[('step',float),('nturn',float),('time',float),('emit1',float),('emit2',float),('sigm',float),('intensity',float),('luminosity',float),('lossrate',float)]
     data = data_flat.view(ftype)
@@ -502,13 +502,18 @@ class LifeDeskDB(object):
     lbl: plot label
     export: export format, e.g. 'png'
     """
-    for p in ['emit1','emit2','sigm','intensity','luminosity','lossrate']:
-      pl.figure(p)
-      try:
-        self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
-        if export != None:
-          print '%s.%s'%(p,export)
-          pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
-      except KeyError:
+    for p in ['emit1','emit2','sigm','intensity','lossrate','luminosity']:
+      if not np.isnan(self.data[p][0]):
+        pl.figure(p,figsize=(8,6))
+        try:
+          self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
+          if export != None:
+            pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
+        except KeyError:
+          print 'ERROR in plot_all: could not plot %s'%p
+          print '   self.data[%s][0]=%s'%(p,self.data[p][0])
+          pl.close(p)
+      else:
         print 'ERROR in plot_all: could not plot %s'%p
         print '   self.data[%s][0]=%s'%(p,self.data[p][0])
+
