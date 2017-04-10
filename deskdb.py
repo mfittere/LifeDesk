@@ -79,7 +79,7 @@ class LifeDeskDB(object):
     self.loss = {}
 # dictionary which stores the lbls and units
     # unnormalized
-    self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate','')}
+    self._unit = {'step': ('step number',''),'nturn': ('number of turns',''),'time': ('time','[s]'),'emit1':('hor. emittance','[$\mu$m]'),'emit2':('vert. emittance','[$\mu$m]'),'sigm':('bunch length','[cm]'),'intensity': ('normalized beam intensity',''),'lossrate':('normalized loss rate',''),'luminosity':('luminosity','')}
     # normalized to the initial value
     self._unitnorm = {'emit1':('hor. emittance $\epsilon_x/\epsilon_{x,0}$',''),'emit2':('vert. emittance $\epsilon_y/\epsilon_{y,0}$',''),'sigm':(r'bunch length $\sigma/\sigma_0$','')}
     for c in 'x y z'.split():
@@ -529,9 +529,9 @@ class LifeDeskDB(object):
     # legend on top
     pl.legend(bbox_to_anchor=(0., 1.07, 1.0, .102), loc=3,ncol=ncol, mode="expand", borderaxespad=0.,fontsize=12,title=title)
     pl.subplots_adjust(left=0.15, right=0.95, top=0.68, bottom=0.1)
-    pl.grid()
+    pl.grid(b=True)
 
-  def plot_all(self,color=None,lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o'):
+  def plot_all(self,color=None,lbl=None,title=None,export=None,alpha=1.0,linestyle='-',marker='o',fignum=''):
     """plots emittance, bunch length, intensity
     luminosity and loss rate vs time [s].
     
@@ -539,17 +539,19 @@ class LifeDeskDB(object):
     -----------
     color: plot color
     lbl: plot label
+    title: title of legend, e.g. collision, beta*=6m
     export: export format, e.g. 'png'
+    fignum: figure number (string) appended to the usual emit1,emit2 etc
     """
     for p in ['emit1','emit2','sigm','intensity','lossrate','luminosity']:
       if not np.isnan(self.data[p][0]):
-        pl.figure(p,figsize=(8,6))
+        pl.figure(p+fignum,figsize=(8,6))
         try:
           self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
           if export != None:
             pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
         except KeyError:
-          print 'ERROR in plot_all: could not plot %s'%p
+          print 'ERROR in plot_all 2: could not plot %s'%p
           print '   self.data[%s][0]=%s'%(p,self.data[p][0])
           pl.close(p)
       else:
