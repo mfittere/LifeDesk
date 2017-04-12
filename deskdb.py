@@ -120,7 +120,9 @@ class LifeDeskDB(object):
         if verbose: print 'deleted file %s'%(ff)
 # create new output files
       if verbose: print '... calling script %s/lhcpost'%(script_path)
-      p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE)
+      fdevnull=open(os.devnull,'wb')
+      p = Popen(['%s/lhcpost'%(script_path),ltr_dir,ltr_file,script_path], stdout=PIPE,stderr=fdevnull)
+      fdevnull.close()
       stdout,stderr=p.communicate()
       if verbose: print stdout
       if stderr != None:
