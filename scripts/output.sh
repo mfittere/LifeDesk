@@ -30,6 +30,7 @@ PYDIR=$3
 
 grep 'Mean_values' $1 | cut -f2 -d'=' > inti.txt
 ${PYDIR}/normint < inti.txt > intensity.txt
+grep 'Die_points:' $1 | cut -f2 -d':' > lostparticle.txt
 ${PYDIR}/lossrate2 < intensity.txt > lossrate.txt
 rm inti.txt
 
