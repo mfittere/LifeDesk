@@ -549,7 +549,7 @@ class LifeDeskDB(object):
       if not np.isnan(self.data[p][0]):
         pl.figure(p+fignum,figsize=(8,6))
         try:
-          self.plot_2d(xaxis='time',yaxis=p,color=color,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
+          self.plot_2d(xaxis='time',yaxis=p,color=color,marker=marker,lbl=lbl,title=title,alpha=alpha,linestyle=linestyle)
           if export != None:
             pl.savefig('%s/%s.%s'%(self.lifedeskenv['plt_dir'],p,export),bbox_inches='tight')
         except KeyError:
