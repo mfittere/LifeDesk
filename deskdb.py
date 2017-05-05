@@ -225,7 +225,10 @@ class LifeDeskDB(object):
             header[step]=np.array((mean,sigm,norm,emit),dtype=htype)
       self.hist['header']= header
       self.hist['data']  = data
-  def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,log=True,res=True,verbose=False):
+  def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,
+        log=True,res=True,
+        ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
+        color=None,verbose=False):
     """plot histogram of particle distribution.
     Plotrange is by default set to [-6,6] sigma,
     while histograms usually extend further.
@@ -247,80 +250,101 @@ class LifeDeskDB(object):
          is given by nstep=[n0,n1,...].
     """
     if self.hist == {}:
-      print 'ERROR: no histogram data available! Run self.get_hist() to read in histogram data, if it exists.'
-    else:
-      # map plane to array in self.hist['header'][*]
-      hist_keys={'x':0,'px':1,'y':2,'py':3,'z':4,'pz':5}
-      lbl_keys={'x':'x','px':'p_x','y':'y','py':'p_y','z':'z','pz':'p_z','ax':'ax','ay':'ay','r':'r'}
-      if nstep == None:
-        steps=self.hist['header'].keys()
-        nstep=[steps[0],steps[-1]]
-      if res and len(nstep)>1: 
-        gs = gridspec.GridSpec(3, 1, height_ratios=[3,1,1])
-        ax1 = pl.subplot(gs[1])
-        ax2 = pl.subplot(gs[2])
-      else: gs = gridspec.GridSpec(1, 1)
-      ax0 = pl.subplot(gs[0])
-      for step in nstep:
-        data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
-        steplen = self.input_param['steplen'][0] # number of turns per step
-        fit = (self.hist['header'][step]) 
-        width = data['val'][1]-data['val'][0]
-        for p in list(plane):
-          # get the data
-          xdata = data['val']
-          if p == 'r':
-            ydata = np.sqrt(data['ax']**2+data['ay']**2)
-          else:
-            ydata = data[p]
-          myplot=pl.plot(xdata,ydata,ls='steps',label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
-          c=myplot[-1].get_color()
+      raise ValueError('ERROR: no histogram data available! Run '+
+        'self.get_hist() to read in histogram data, if it exists.')
+#    # generate the figuer
+    pl.gcf().set_size_inches(5, 6, forward=True)
+    # map plane to array in self.hist['header'][*]
+    hist_keys={'x':0,'px':1,'y':2,'py':3,'z':4,'pz':5}
+    lbl_keys={'x':'x','px':'p_x','y':'y','py':'p_y','z':'z','pz':'p_z','ax':'ax','ay':'ay','r':'r'}
+    if nstep == None:
+      steps=self.hist['header'].keys()
+      nstep=[steps[0],steps[-1]]
+    if res and len(nstep)>1: 
+      gs = gridspec.GridSpec(3, 1, height_ratios=[2,1,1],hspace=0.07,
+            left=0.15,right=0.98)
+      ax1 = pl.subplot(gs[1])
+      ax2 = pl.subplot(gs[2])
+    else: gs = gridspec.GridSpec(1, 1)
+    ax0 = pl.subplot(gs[0])
+    if color is None or type(color) is str:
+      color = [color]*len(plane)
+    if len(color) != len(plane):
+      raise ValueError('color must be either None, string or length' +
+        'of list of colors must be length of planes!')
+    for step,alpha in zip(nstep,[1.0,0.5]):
+      data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
+      steplen = self.input_param['steplen'][0] # number of turns per step
+      fit = (self.hist['header'][step]) 
+      width = data['val'][1]-data['val'][0]
+      for p,cl in zip(list(plane),color):
+        # get the data
+        xdata = data['val']
+        if p == 'r':
+          ydata = np.sqrt(data['ax']**2+data['ay']**2)
+        else:
+          ydata = data[p]
+        myplot=ax0.plot(xdata,ydata,ls='steps',color=cl,alpha=alpha,
+                       label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
+        c=myplot[-1].get_color()
+        if p in ['x','px','y','py','z','pz']:
+          ax0.plot(xdata,gaussian(xdata,0,fit['norm'][hist_keys[p]]),linestyle='--',color=c)
+          if verbose: print fit['norm'][hist_keys[p]]
+        if step != nstep[0]:
+          # plot difference in respect to Gaussian
           if p in ['x','px','y','py','z','pz']:
-            ax0.plot(xdata,gaussian(xdata,0,fit['norm'][hist_keys[p]]),linestyle='--',color=c)
-            if verbose: print fit['norm'][hist_keys[p]]
-          if step != nstep[0]:
-            # intersept the histogram bins, plot only bins for which interseption exists
-            data_step0 = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[0]]
-            xdata0=data_step0['val']
-            if p == 'r':
-              ydata0 = np.sqrt(data_step0['ax']**2+data_step0['ay']**2)
-            else:
-              ydata0 = data_step0[p]
-            vals_intersept = np.array(list(set(xdata) & set(xdata0)))
-            vals_step0 = np.array([ x in vals_intersept for x in xdata0 ])
-            vals = np.array([ x in vals_intersept for x in xdata ])
-            if np.max(np.abs(xdata0[vals_step0]-xdata[vals]))>0:
-              print 'ERROR: something went wrong! The bins of the data for step %s and %s do not agree'%(nstep[0],step)
-            else:
-              bins = xdata0[vals_step0]
-              residual = (ydata[vals]-ydata0[vals_step0])*100
-              ratio = ydata[vals]/ydata0[vals_step0]
-              ax1.plot(bins,residual,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
-              ax2.plot(bins,ratio,linestyle='-',color=c,label=r'v=$%s$'%lbl_keys[p])
-          if res: axes = [ax0,ax1,ax2]
-          else: axes = [ax0]
-          for ax in axes:
-            if p in ['r','ax','ay','az']:
-              ax.set_xlim([0,6])
-              ax0.legend(loc='lower left',fontsize=12)
-            else:
-              ax.set_xlim([-6,6])
-              ax0.legend(loc='upper right',fontsize=12)
-            ax.set_xlabel(r'$\sigma$',fontsize=12)
-            ax.grid(b=True)
-          ax0.set_ylabel(r'count')
-          if log == True: ax0.set_yscale('log')
-          if res:
-            ax1.set_title(r'$\mathrm{residual = v(turn \ %s) - v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
-            ax2.set_title(r'$\mathrm{ratio = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
-#            ax1.legend(loc='upper right',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
-            ax1.legend(loc='lower left',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
-            ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
-            ax1.set_ylabel(r'residual [%]')
-            ax2.set_ylabel(r'ratio')
-            ax2.set_yscale('log')
-    pl.tight_layout()
-  def mk_hist_video(self,fn='lhc.hist',nstep=None,fit=True,log=True,res=True,plt_dir=None,export=False,verbose=False,ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],delay=20):
+            ax1.plot(xdata,(ydata-gaussian(xdata,0,fit['norm'][hist_keys[p]]))*100,linestyle='--',color=c)
+          # intersept the histogram bins, plot only bins for which interseption exists
+          data_step0 = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[0]]
+          xdata0=data_step0['val']
+          if p == 'r':
+            ydata0 = np.sqrt(data_step0['ax']**2+data_step0['ay']**2)
+          else:
+            ydata0 = data_step0[p]
+          vals_intersept = np.array(list(set(xdata) & set(xdata0)))
+          vals_step0 = np.array([ x in vals_intersept for x in xdata0 ])
+          vals = np.array([ x in vals_intersept for x in xdata ])
+          if np.max(np.abs(xdata0[vals_step0]-xdata[vals]))>0:
+            print 'ERROR: something went wrong! The bins of the data for step %s and %s do not agree'%(nstep[0],step)
+          else:
+            bins = xdata0[vals_step0]
+            residual = (ydata[vals]-ydata0[vals_step0])*100
+            ratio = ydata[vals]/ydata0[vals_step0]
+            ax1.plot(bins,residual,linestyle='-',color=c,label=r'$%s$'%lbl_keys[p])
+            ax2.plot(bins,ratio,linestyle='-',color=c,label=r'$%s$'%lbl_keys[p])
+        if res: axes = [ax0,ax1,ax2]
+        else: axes = [ax0]
+        ftl = 12 # fontsize legend
+        fta = 12
+        for ax in axes:
+          if p in ['r','ax','ay','az']:
+            ax.set_xlim([0,6])
+            ax0.legend(loc='lower left',fontsize=ftl)
+          else:
+            ax.set_xlim([-6,6])
+            ax0.legend(loc='lower center',fontsize=ftl)
+          ax.grid(b=True)
+        # remove tick labels from ax0,ax1 + add plot label to ax2
+        ax0.set_xticklabels([])
+        ax1.set_xticklabels([])
+        ax2.set_xlabel(r'$\sigma$',fontsize=fta)
+        ax0.set_ylabel(r'count',fontsize=fta)
+        if log == True: ax0.set_yscale('log')
+        if res:
+#          ax1.set_title(r'$\mathrm{residual = v(turn \ %s) - v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
+#          ax2.set_title(r'$\mathrm{ratio = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
+          ax1.legend(loc='lower left',fontsize=ftl,ncol=2,columnspacing=0.4,handlelength=0.1)
+          ax2.legend(loc='upper center',fontsize=ftl,ncol=2,columnspacing=0.4,handlelength=0.1)
+          ax1.set_ylabel(r'residual [%]',fontsize=fta)
+          ax2.set_ylabel(r'ratio',fontsize=fta)
+          ax2.set_yscale('log',fontsize=fta)
+          ax0.set_ylim(ylimhist)
+          ax1.set_ylim(ylimresdiff)
+          ax2.set_ylim(ylimresrat)
+  def mk_hist_video(self,fn='lhc.hist',nstep=None,fit=True,
+        log=True,res=True,plt_dir=None,export=False,verbose=False,
+        ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
+        delay=20):
     """make an animated gif of histograms for all
     planes with x,px in one plot, y,py in one etc..
     Plotrange is by default set to [-6,6] sigma,
@@ -349,15 +373,19 @@ class LifeDeskDB(object):
       for step in range(nstep[0],nstep[1]+1): 
         pl.figure(pp[0],figsize=(8,8))
         pl.clf()
-        self.plot_hist(nstep=[nstep[0],step],plane=pp,fit=fit,log=log,res=res)
+        self.plot_hist(nstep=[nstep[0],step],plane=pp,fit=fit,log=log,
+                       res=res)
         ax2,ax1,ax0=pl.gcf().get_axes()
         ax0.set_ylim(ylimhist)
         ax1.set_ylim(ylimresrat)
         ax2.set_ylim(ylimresdiff)
-        fnpl=os.path.join(tmpdir,'%s_%s_%s.png'%(pp[0],pp[1],str(int(step)).zfill(len(str(pp[1]))+1)))
+        fnpl=os.path.join(tmpdir,'%s_%s_%s.png'%(pp[0],pp[1],
+               str(int(step)).zfill(len(str(pp[1]))+1)))
         pl.savefig(fnpl)
         if verbose: print '... save png %s'%(fnpl)
-      cmd="convert -delay %s %s %s"%(delay,os.path.join(tmpdir,'%s*.png'%pp[0]),os.path.join(plt_dir,'%s_%s.gif'%(pp[0],pp[1])))
+      cmd="convert -delay %s %s %s"%(delay,
+          os.path.join(tmpdir,'%s*.png'%pp[0]),
+          os.path.join(plt_dir,'%s_%s.gif'%(pp[0],pp[1])))
       os.system(cmd)
       if verbose: print '... creating .gif file with convert' 
     if export == False: shutil.rmtree(tmpdir)

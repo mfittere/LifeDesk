@@ -38,5 +38,8 @@ grep ": $2" $1 | cut -f3 -d' ' > lumi.txt
 ${PYDIR}/speclumi > luminosity.txt
 rm lumi.txt
 
+# Gaussian fit
 ${PYDIR}/emitgfit $1 > emit.txt
+# rms emittance
+grep '|emit|' $1 | cut -f2,4,6 -d' ' > emitrms.txt
 grep '|sigm|' $1 | cut -f10 -d' ' > sigm.txt
