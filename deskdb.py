@@ -225,10 +225,94 @@ class LifeDeskDB(object):
             header[step]=np.array((mean,sigm,norm,emit),dtype=htype)
       self.hist['header']= header
       self.hist['data']  = data
+  def plot_hist_xyz(self,fn='lhc.hist',nstep=None,fit=True,
+        log=True,ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
+        color='k',title=''):
+    """plot histogram of particle distribution
+    in physical coordinates for start and end turn.
+    For the longitudinal the 3 step is used.
+    Plotrange is by default set to [-6,6] sigma,
+    while histograms usually extend further.
+    Parameters:
+    fn:    filename with histogram data
+    fit: plot Gaussian fit
+    log: switch on log scale for distribution plot
+    nstep: either list with [nstart,nend] or 
+           nturn=None, then the first and last 
+           turn are used
+    color: color used for plot
+    title: figure title
+    """
+    if self.hist == {}:
+      raise ValueError('ERROR: no histogram data available! Run '+
+        'self.get_hist() to read in histogram data, if it exists.')
+    # map plane to array in self.hist['header'][*]
+    hist_keys={'x':0,'px':1,'y':2,'py':3,'z':4,'pz':5}
+    lbl_keys={'x':'x','px':'p_x','y':'y','py':'p_y','z':'z','pz':'p_z','ax':'ax','ay':'ay','r':'r'}
+    if nstep == None:
+      steps=self.hist['header'].keys()
+      nstep=[steps[0],steps[-1]]
+    for plane in 'x','y','z':
+      # generate the figure
+      pl.figure('%s %s'%(title,plane),figsize=(5,6))
+      pl.gcf().set_size_inches(5, 6, forward=True)
+      gs = gridspec.GridSpec(3, 1, height_ratios=[2,1,1],hspace=0.07,
+            left=0.15,right=0.98)
+      ax0 = pl.subplot(gs[0])
+      ax1 = pl.subplot(gs[1])
+      ax2 = pl.subplot(gs[2])
+      for step,alpha in zip(nstep,[0.2,1.0]):
+        data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
+        steplen = self.input_param['steplen'][0] # number of turns per step
+        histfit = (self.hist['header'][step]) 
+        width = data['val'][1]-data['val'][0]
+        # get the data
+        xdata = data['val']
+        ydata = data[plane]
+        myplot=ax0.plot(xdata,ydata,ls='steps',color=color[0],alpha=alpha,
+                       label=r'$%s(\mathrm{turn \ %4.1e)}$'%(lbl_keys[plane],int(step*steplen)))
+        if fit:
+          ax0.plot(xdata,gaussian(xdata,0,histfit['norm'][hist_keys[plane]]),linestyle='-',color='r',label='Gaussian fit(turn %4.1e)'%(int(step*steplen)),alpha=alpha)
+          ax1.plot(xdata,(ydata-gaussian(xdata,0,histfit['norm'][hist_keys[plane]]))*100,linestyle='-',color='r',alpha=alpha)
+      # intersept the histogram bins, plot only bins for which interseption exists
+      data_step0 = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[0]]
+      xdata0=data_step0['val']
+      ydata0 = data_step0[plane]
+      data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[1]]
+      xdata = data['val']
+      ydata = data[plane]
+      vals_intersept = np.array(list(set(xdata) & set(xdata0)))
+      vals_step0 = np.array([ x in vals_intersept for x in xdata0 ])
+      vals = np.array([ x in vals_intersept for x in xdata ])
+      if np.max(np.abs(xdata0[vals_step0]-xdata[vals]))>0:
+        raise ValueError('Something went wrong! The bins of the data for step %s and %s do not agree'%(nstep[0],step))
+      bins = xdata0[vals_step0]
+      residual = (ydata[vals]-ydata0[vals_step0])*100
+      ratio = ydata[vals]/ydata0[vals_step0]
+      ax1.plot(bins,residual,linestyle='-',color=color)
+      ax2.plot(bins,ratio,linestyle='-',color=color)
+      for ax in [ax0,ax1,ax2]:
+        ax.set_xlim([-6,6])
+        ax0.legend(loc='lower center',fontsize=12)
+        ax.grid(b=True)
+      # remove tick labels from ax0,ax1 + add plot label to ax2
+      ax0.set_xticklabels([])
+      ax1.set_xticklabels([])
+      ax2.set_xlabel(r'$\sigma$')
+      ax0.set_ylabel(r'count')
+      if log == True: ax0.set_yscale('log')
+      ax1.legend(loc='lower left',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+      ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+      ax1.set_ylabel('residual [\%]')
+      ax2.set_ylabel(r'ratio')
+      ax2.set_yscale('log')
+      ax0.set_ylim(ylimhist)
+      ax1.set_ylim(ylimresdiff)
+      ax2.set_ylim(ylimresrat)
   def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,
         log=True,res=True,
         ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
-        color=None,alpha=None,verbose=False):
+        color=None,verbose=False):
     """plot histogram of particle distribution.
     Plotrange is by default set to [-6,6] sigma,
     while histograms usually extend further.
@@ -249,8 +333,6 @@ class LifeDeskDB(object):
          in a separte subplot. The list of histogams
          is given by nstep=[n0,n1,...].
     color: color of plot, either string or list of strings 
-           with 2*len(plane)
-    alpha: alpha of plot, either string or list of strings 
            with 2*len(plane)
     """
     if self.hist == {}:
@@ -276,26 +358,23 @@ class LifeDeskDB(object):
     if len(color) != len(plane)*2:
       raise ValueError('color must be either None, string or length' +
         'of list of colors must be 2 x length of planes!')
-    if alpha is None:
-      alpha = 1.0
-    if type(alpha) is float or type(alpha) is int:
-      alpha = [alpha]*len(plane)*2
-    if len(alpha) != len(plane)*2:
-      raise ValueError('alpha must be either None, string or length' +
-        'of list of alphas must be 2 x length of planes!')
-    for step in nstep:
+    for step,al,lns in nstep:
       data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
       steplen = self.input_param['steplen'][0] # number of turns per step
       fit = (self.hist['header'][step]) 
       width = data['val'][1]-data['val'][0]
-      for p,cl,al in zip(list(plane),color,alpha):
+      if type(plane) is str:
+        lplane = [plane]
+      else:
+        lplane = plane
+      for p,cl in zip(lplane,color):
         # get the data
         xdata = data['val']
         if p == 'r':
           ydata = np.sqrt(data['ax']**2+data['ay']**2)
         else:
           ydata = data[p]
-        myplot=ax0.plot(xdata,ydata,ls='steps',color=cl,alpha=al,
+        myplot=ax0.plot(xdata,ydata,ls='steps',color=cl,
                        label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
         c=myplot[-1].get_color()
         if p in ['x','px','y','py','z','pz']:
