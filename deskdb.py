@@ -228,7 +228,7 @@ class LifeDeskDB(object):
   def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,
         log=True,res=True,
         ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
-        color=None,verbose=False):
+        color=None,alpha=None,verbose=False):
     """plot histogram of particle distribution.
     Plotrange is by default set to [-6,6] sigma,
     while histograms usually extend further.
@@ -248,6 +248,10 @@ class LifeDeskDB(object):
          histograms (n1,n2,...) is plotted
          in a separte subplot. The list of histogams
          is given by nstep=[n0,n1,...].
+    color: color of plot, either string or list of strings 
+           with 2*len(plane)
+    alpha: alpha of plot, either string or list of strings 
+           with 2*len(plane)
     """
     if self.hist == {}:
       raise ValueError('ERROR: no histogram data available! Run '+
@@ -268,23 +272,30 @@ class LifeDeskDB(object):
     else: gs = gridspec.GridSpec(1, 1)
     ax0 = pl.subplot(gs[0])
     if color is None or type(color) is str:
-      color = [color]*len(plane)
-    if len(color) != len(plane):
+      color = [color]*len(plane)*2
+    if len(color) != len(plane)*2:
       raise ValueError('color must be either None, string or length' +
-        'of list of colors must be length of planes!')
-    for step,alpha in zip(nstep,[1.0,0.5]):
+        'of list of colors must be 2 x length of planes!')
+    if alpha is None:
+      alpha = 1.0
+    if type(alpha) is float or type(alpha) is int:
+      alpha = [alpha]*len(plane)*2
+    if len(alpha) != len(plane)*2:
+      raise ValueError('alpha must be either None, string or length' +
+        'of list of alphas must be 2 x length of planes!')
+    for step in nstep:
       data = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%step]
       steplen = self.input_param['steplen'][0] # number of turns per step
       fit = (self.hist['header'][step]) 
       width = data['val'][1]-data['val'][0]
-      for p,cl in zip(list(plane),color):
+      for p,cl,al in zip(list(plane),color,alpha):
         # get the data
         xdata = data['val']
         if p == 'r':
           ydata = np.sqrt(data['ax']**2+data['ay']**2)
         else:
           ydata = data[p]
-        myplot=ax0.plot(xdata,ydata,ls='steps',color=cl,alpha=alpha,
+        myplot=ax0.plot(xdata,ydata,ls='steps',color=cl,alpha=al,
                        label=r'$%s(\mathrm{turn \ %s)}$'%(lbl_keys[p],int(step*steplen)))
         c=myplot[-1].get_color()
         if p in ['x','px','y','py','z','pz']:
@@ -335,7 +346,7 @@ class LifeDeskDB(object):
 #          ax2.set_title(r'$\mathrm{ratio = v(turn \ %s)/v(turn \ %s)}$'%(int(step*steplen),int(nstep[0]*steplen)))
           ax1.legend(loc='lower left',fontsize=ftl,ncol=2,columnspacing=0.4,handlelength=0.1)
           ax2.legend(loc='upper center',fontsize=ftl,ncol=2,columnspacing=0.4,handlelength=0.1)
-          ax1.set_ylabel(r'residual [%]',fontsize=fta)
+          ax1.set_ylabel('residual [\%]',fontsize=fta)
           ax2.set_ylabel(r'ratio',fontsize=fta)
           ax2.set_yscale('log',fontsize=fta)
           ax0.set_ylim(ylimhist)
