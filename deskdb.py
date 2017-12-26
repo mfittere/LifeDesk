@@ -226,7 +226,7 @@ class LifeDeskDB(object):
       self.hist['header']= header
       self.hist['data']  = data
   def plot_hist_xyz(self,fn='lhc.hist',nstep=None,fit=True,
-        log=True,ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
+        log=True,ylimhist=None,ylimresdiff=None,ylimresrat=None,
         color='k',title=''):
     """plot histogram of particle distribution
     in physical coordinates for start and end turn.
@@ -242,6 +242,8 @@ class LifeDeskDB(object):
            turn are used
     color: color used for plot
     title: figure title
+    ylimhist,ylimresdiff,ylimresrat: ylim of 
+           histogram, residual and ratio plot
     """
     if self.hist == {}:
       raise ValueError('ERROR: no histogram data available! Run '+
@@ -306,9 +308,9 @@ class LifeDeskDB(object):
       ax1.set_ylabel('residual [\%]')
       ax2.set_ylabel(r'ratio')
       ax2.set_yscale('log')
-      ax0.set_ylim(ylimhist)
-      ax1.set_ylim(ylimresdiff)
-      ax2.set_ylim(ylimresrat)
+      if ylimhist is not None: ax0.set_ylim(ylimhist)
+      if ylimresdiff is not None: ax1.set_ylim(ylimresdiff)
+      if ylimresrat is not None: ax2.set_ylim(ylimresrat)
   def plot_hist(self,fn='lhc.hist',plane='x',nstep=None,fit=True,
         log=True,res=True,
         ylimhist=[1.e-4,1.1],ylimresdiff=[-15,15],ylimresrat=[1.e-1,15],
