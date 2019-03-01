@@ -271,10 +271,17 @@ class LifeDeskDB(object):
         # get the data
         xdata = data['val']
         ydata = data[plane]
+        str_nturn = ('%4.1e'%int(step*steplen)).split('e')
+        str_nturn[1] = str(int(str_nturn[1]))
         myplot=ax0.plot(xdata,ydata,ls='steps',color=color[0],alpha=alpha,
-                       label=r'$%s(\mathrm{turn \ %4.1e)}$'%(lbl_keys[plane],int(step*steplen)))
+#                       label=r'$%s(\mathrm{turn \ %4.1e)}$'%(lbl_keys[plane],int(step*steplen)))
+# choose 10^* notation for PRSTAB paper 
+                       label=r'$%s(\mathrm{turn \ %s \times 10^{%s})}$'%(lbl_keys[plane],str_nturn[0],str_nturn[1]))
         if fit:
-          ax0.plot(xdata,gaussian(xdata,0,histfit['norm'][hist_keys[plane]]),linestyle='-',color='r',label='Gaussian fit(turn %4.1e)'%(int(step*steplen)),alpha=alpha)
+          ax0.plot(xdata,gaussian(xdata,0,histfit['norm'][hist_keys[plane]]),linestyle='-',color='r',
+#            label='Gaussian fit(turn %4.1e)'%(int(step*steplen)),alpha=alpha)
+# choose 10^* notation for PRSTAB paper 
+            label=r'Gaussian fit$(\mathrm{turn \ %s \times 10^{%s})}$'%(str_nturn[0],str_nturn[1]),alpha=alpha)
           ax1.plot(xdata,(ydata-gaussian(xdata,0,histfit['norm'][hist_keys[plane]]))*100,linestyle='-',color='r',alpha=alpha)
       # intersept the histogram bins, plot only bins for which interseption exists
       data_step0 = (self.hist['data'])[(self.hist['data'])['step']=='S_%s'%nstep[0]]
@@ -295,17 +302,18 @@ class LifeDeskDB(object):
       ax2.plot(bins,ratio,linestyle='-',color=color)
       for ax in [ax0,ax1,ax2]:
         ax.set_xlim([-6,6])
-        ax0.legend(loc='lower center',fontsize=12)
         ax.grid(b=True)
+      ax0.legend(loc='lower center',fontsize=12)
       # remove tick labels from ax0,ax1 + add plot label to ax2
       ax0.set_xticklabels([])
       ax1.set_xticklabels([])
       ax2.set_xlabel(r'$\sigma$')
       ax0.set_ylabel(r'count')
       if log == True: ax0.set_yscale('log')
-      ax1.legend(loc='lower left',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
-      ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
-      ax1.set_ylabel('residual [\%]')
+#      ax1.legend(loc='lower left',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+#      ax2.legend(loc='upper center',fontsize=12,ncol=2,columnspacing=0.4,handlelength=0.1)
+#      ax1.set_ylabel('residual [\%]')
+      ax1.set_ylabel('residual [%]')
       ax2.set_ylabel(r'ratio')
       ax2.set_yscale('log')
       if ylimhist is not None: ax0.set_ylim(ylimhist)
